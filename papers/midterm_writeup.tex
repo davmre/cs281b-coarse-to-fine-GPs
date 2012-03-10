@@ -22,7 +22,7 @@
 Test reference: \cite{rasmussen06}. 
 
 \section{Related Work}
-
+As has been discussed in the earlier sections, the training requires the inversion of the Gram matrix $K+\sigma^2I$ which is an $N\times N$ matrix. Naive approaches for this inversion requires $O(N^3)$ operations. In the case of practical applications, N can be on the order of $10^6$ to $10^9$ and even computing and storing the Gram matrix can be prohibitive. Moreover, for big $N$, the Gram matrix has to be stored in slow memory and transferring the data from slow memory to fast memory will dominate the cost of arithmetic operations \cite{RandomizedMatrixDecompose}.  Various researchers have proposed computationally efficient techniques in order to reduce these various costs. Low rank and sparse approximations and randomized algorithms aim to reduce the cost of the matrix inversion from $O(N^3)$ to more feasible levels. There are various approaches utilizing fast matrix-vector multiplication techniques in order to reduce the costs further during training and prediction stages. Space-partitioning trees like KD-trees and cover trees have been applied as an alternative to the low rank and sparse approximations. Moreover, in order to cope with the transfer from slow memory some algorithms have been proposed that just passes over the Gram matrix once.
 \subsection{Low-Rank Approximations}
 
 \subsection{Randomized Features}
@@ -40,6 +40,7 @@ Test reference: \cite{rasmussen06}.
 
 \subsection{Datasets}
 
+\newpage
 \bibliographystyle{plain}
 \bibliography{refs}
 
