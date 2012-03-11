@@ -17,7 +17,13 @@
 
 \section{Introduction}
 
+Gaussian processes (GP) are well known as a powerful tool for nonlinear regression. As a kernel-based method, Gaussian process regression (GPR) is nonparametric, enabling it to represent increasingly complex functions as the amount of training data increases. Unlike most other kernel methods, however, GPR is inherently probabilistic: it provide not just a single prediction of the function value at a test point, but a full probability distribution. This makes GPs ideal for use as part of larger Bayesian models, and more broadly they are appropriate for any application that can benefit from a principled treatment of uncertainty. 
+
+However, all of this power comes at a cost. Training a GP model requires $O(n^3)$ time and $O(n^2)$ space in the number of training examples, while making a single prediction requires $O(n)$ time (including $n$ evaluations of the kernel function). For this reason, na\"{\i}ve GP regression is infeasible on large datasets; for example, training a model with $n = 100000$ requires on the order of a quadrillion operations. Clearly, significant improvements are necessary in order to scale GP regression (and kernel regression in general) to modern ``big data'' problems with millions or billions of training examples. In this report, we briefly review Gaussian process regression, then describe several previously proposed approaches for efficiently learning approximate models, and finally discuss potential directions for improving on these approaches. 
+
 \section{Gaussian Processes}
+
+
 
 Test reference: \cite{rasmussen06}. 
 
