@@ -87,6 +87,15 @@ k(\mathbf{x}-\mathbf{x'})&\approx& \frac{1}{D}\sum_{i=1}^De^{j\omega_i^T\mathbf{
 \\ \frac{1}{\sqrt{D}} e^{-jw_D^T\mathbf{x'}}
 \end{bmatrix}}_{\mathbf{z}(\mathbf{x'})}
 \end{eqnarray}
+Therefore, random features can be viewed as a $D$-dimensional low rank approximation to kernel matrix $\mathbf{K}$. The kernel matrix is approximated as;
+\begin{equation}
+\mathbf{K}\approx\mathbf{Q}\mathbf{Q}^H\>where \> \mathbf{Q}=
+\begin{bmatrix}
+\mathbf{z}^H(\mathbf{x}_1)\\ \mathbf{z}^H(\mathbf{x}_2)
+\\ \vdots
+\\\mathbf{z}^H(\mathbf{x}_N)
+\end{bmatrix} \>and\> \mathbf{Q} \in \mathbb{R}^{N\times D}
+\end{equation}
 \subsection{Sparse Approximations}
 Sparse approximation relies on the greedy heuristic which solves the NP-hard problem of finding a vector $\mathbf{x}$ that satisfies $\left \| \mathbf{A}\mathbf{x} -\mathbf{b} \right \|_2\leq \epsilon $ with the fewest number of non-zero entries (i.e. minimum $L_1$ norm). The greedy heuristic has been investigated in \cite{natarajan}. A randomized greedy version has also been given in \cite{smolaGreedy}.
 
@@ -108,8 +117,31 @@ where $\mathcal{G}(\cdot)$ represents the Gauss Transform \cite{FGTkernel}. Dire
 
 In order to deal with this dimensionality issues, the Improved Fast Gauss Transform (IFGT) has  been proposed. IFGT uses a different expansion technique and replaces the cost of $O(p^d)$ with $O(d^p)$. As $d\rightarrow \infty$ obviously IFGT cost remains smaller than FGT cost. For details see, \cite{FGTkernel}.
 \subsection{Proposed Approaches}
-
+There are various approaches trying to lower the cost of computations via different approaches. Our proposal for gaussian process regression and in general to any kernel machine which requires $O(N^3)$ operations is using a blend of the techniques above. The proposed solution is to utilize KD-trees or cover trees to form clusters of data in a multiresolution sense and to do low-rank approximation using the random-features approach in each cluster. Moreover, to fasten up the matrix-vector multiplications we plan to use Fast Gauss Transform so that the complexity of $O(N^2)$ can be reduced to feasible levels of $O(N)$. The approach can be summarized as follows:
+\begin{itemize}
+\item The space-partitioning tree will form clusters of data in a multiresolution sense.
+\item For the biggest cluster, the low-rank approximation solution will be obtained using random features approach with $D_0$ samples.
+\item For the second cluster level, the low-rank solution will be obtained using random features approach with $D_1$ samples, where $D_1>D_0$.
+\item For the deeper clusters the same approach will be utilized with $\dots>D_2>D_1>D_0$
+\item All steps will utilize the Fast Gauss Transform in order to speed up the matrix vector multiplications.
+\item The solutions at each depth level will be weighted.
+\item One can adaptively increase the resolution depending on the quality of the predictions only at the cost of increasing the resolution one more level, using the available data structures and computations.
+\end{itemize}
+Pictorially, this corresponds to figure \ref{fig:multiresolution}
+\begin{figure}[h!] \label{fig:multiresolution}
+  \caption{Multiresolution Structure}
+  \centering
+    \includegraphics[width=0.7\textwidth]{multiresolution}
+\end{figure}
 \subsection{Datasets}
+sdfsdf \\
+sdfsd\\
+sdfsd\\
+sdfsdf\\
+asdads\\
+addfs\\
+dsff\\
+
 
 \newpage
 \bibliographystyle{plain}
