@@ -56,10 +56,10 @@ The issue with this approach is that it requires knowing the spectrum of the eig
 One particular approach is Nystrom method which approximates the eigenvectors of the kernel matrix by choosing a subset of data. In order to choose subsets of data several greedy algorithms have been proposed \cite{rasmussen} \cite{smolaGreedy}. A randomized matrix approximation approach is given in \cite{RandomizedMatrixDecompose} which is also a \textit{single pass} algorithm. 
 
 Assuming that the subspace of interest (the eigenvectors with substantial eigenvalues) is obtained, one can try to solve the linear system in the subspace of interest using an iterative technique like Conjugate Directions. Intuitively, this is equivalent to projecting the true solution vector to the subspace of interest.
-\begin{figure}[h!] \label{fig:subspace}
+\begin{figure}[b!] \label{fig:subspace}
   \caption{Solution in the Subspace of Interest}
   \centering
-    \includegraphics[width=0.8\textwidth]{subspace}
+    \includegraphics[width=0.7\textwidth]{subspace}
 \end{figure}
 A pictorial description of solving the linear system in a subspace is given in figure \ref{fig:subspace}
 \subsection{Random Features}
