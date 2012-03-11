@@ -10,6 +10,9 @@
 
 \newcommand{\smallest}{\operatornamewithlimits{smallest}}
 
+\DeclareMathOperator*{\argmin}{arg\!min}
+\DeclareMathOperator*{\var}{var}
+
 \begin{document}
 
 \title{Coarse-to-fine Gaussian Process Regression}
@@ -19,15 +22,24 @@
 
 \section{Introduction}
 
-Gaussian processes (GP) are well known as a powerful tool for nonlinear regression. As a kernel-based method, Gaussian process regression (GPR) is nonparametric, enabling it to represent increasingly complex functions as the amount of training data increases. Unlike most other kernel methods, however, GPR is inherently probabilistic: it provide not just a single prediction of the function value at a test point, but a full probability distribution. This makes GPs ideal for use as part of larger Bayesian models, and more broadly they are appropriate for any application that can benefit from a principled treatment of uncertainty. 
+Gaussian processes are a powerful tool for nonlinear regression. Gaussian process regression (GPR) is nonparametric, enabling it to represent increasingly complex functions as the amount of training data increases, and unlike most other kernel-based methods, it is also inherently probabilistic: it provide not just a single prediction of the function value at a test point, but a full probability distribution. This principled approach to uncertainty makes GPs ideal for use as part of larger Bayesian models, as well as enabling a wide range of additional applications including active learning, optimal sensor placement, and global function optimization \cite{guestrin2005near}\cite{osborne2009gaussian}. 
 
 However, all of this power comes at a cost. Training a GP model requires $O(n^3)$ time and $O(n^2)$ space in the number of training examples, while making a single prediction requires $O(n)$ time (including $n$ evaluations of the kernel function). For this reason, na\"{\i}ve GP regression is infeasible on large datasets; for example, training a model with $n = 100000$ requires on the order of a quadrillion operations. Clearly, significant improvements are necessary in order to scale GP regression (and kernel regression in general) to modern ``big data'' problems with millions or billions of training examples. In this report, we briefly review Gaussian process regression, then describe several previously proposed approaches for efficiently learning approximate models, and finally discuss potential directions for improving on these approaches. 
 
-\section{Gaussian Processes}
+\section{Gaussian Process Regression}
+In the regression task, our goal is to learn some unknown function $f({\mathbf x})$. We are given as training data a set of $n$ points $\mathbf{X} = \{\mathbf{x}_1, \ldots, \mathbf{x}_n\}$, along with a vector $\mathbf{y} = [y_1, \ldots, y_n]$ containing observations of the function evaluated at each point. We assume the observations are noisy; that is, $y_i = f(\mathbf{x_i}) + \epsilon_i$ where $\epsilon_i \sim N(0, \sigma^2)$. 
 
+The premise of Gaussian process regression is that, for any set of points $\mathbf{x}_1, \ldots, \mathbf{x}_n$, the joint distribution of the function values $[f(\mathbf{x}_1), \ldots, f(\mathbf{x_n})]$ is multivariate Gaussian. The mean of the Gaussian is typically taken to be zero (though this is not necessary), and the covariances are specified by a positive semidefinite kernel function $k(\mathbf{x}, \mathbf{x'})$. The specific choice of kernel determines the inductive bias of the regressor, and is the major modeling decision to be made when applying GP regression. One common choice is the {\em squared-exponential} kernel\begin{equation}[k(\mathbf{x}, \mathbf{x'}) = \exp\left (- \frac{ \|\mathbf{x} - \mathbf{x'}\|^2 }{2w} \right)\end{equation}
+which decays with the distance between $\mathbf{x}$ and $\mathbf{x'}$ at a rate given by the length scale parameter $w$. 
 
+Given a kernel and a training set, we can define the kernel matrix $\mathbf{K}$ as the $n \times n$ symmetric matrix given by $K_{ij} = k(\mathbf{x}_i, \mathbf{x_j})$. This is the covariance matrix of the function values at the training points; we extend this to $\mathbf{M} = (\mathbf{K} + \sigma^2\mathbf{I})$ to account for the additional variance introduced by the noisy observations. Then a standard derivation \cite{rasmussen06} shows that the conditional distribution $p(\mathbf{x} | \mathbf{x_1}, \ldots, \mathbf{x_n}, \mathbf{y})$ of the function value at a test point, given the training data, is Gaussian with mean and variance
+\begin{align}
+\mathbb{E}(f(\mathbf{x}) | \mathbf{X}, \mathbf{y}) &= \mathbf{k}^T \mathbf{M}^{-1} \mathbf{y}\\
+\var(f(\mathbf{x}) | \mathbf{X}, \mathbf{y}) &= k(\mathbf{x}, \mathbf{x}) - \mathbf{k}^T \mathbf{M}^{-1} \mathbf{k}.
+\end{align}
+where $\mathbf{k}$ is the vector of kernel evaluations between the test point and the training point, that is $\mathbf{k}_i = k(\mathbf{x},\mathbf{x}_i)$. 
 
-Test reference: \cite{rasmussen06}. 
+Let us consider the complexity involved in learning and prediction using these equations. The expectation at a query point consists of a dot product between two $n$-element vectors, $\mathbf{k}$ and $\mathbf{M}^{-1} \mathbf{y}$. Note that the latter vector is independent of the query point and can be precomputed during training, so the marginal cost of predicting a single new point is $O(n)$. However, training requires significantly longer: $O(n^3)$ time to compute $\mathbf{M}^{-1}$ using standard methods (e.g. Cholesky decomposition). Note that if we want to be able to predict variances we must store $\mathbf{M}^{-1}$ explicitly using $O(n^2)$ space (since $\mathbf{M}^{-1}$ will be dense in general even if $\mathbf{M}$ is sparse), whereas if we only require expectations we can precompute the vector $\mathbf{M}^{-1}\mathbf{y}$ and store it using $O(n)$ space (although $O(n^2)$ space is still required for the computation).
 
 \section{Related Work}
 As has been discussed in the earlier sections, the training requires the inversion of the Gram matrix $\mathbf{K}+\sigma^2\mathbf{I}$ which is an $N\times N$ matrix. Naive approaches for this inversion requires $O(N^3)$ operations. In the case of practical applications, N can be on the order of $10^6$ to $10^9$ and even computing and storing the Gram matrix can be prohibitive. Moreover, for big $N$, the Gram matrix has to be stored in slow memory and transferring the data from slow memory to fast memory will dominate the cost of arithmetic operations \cite{RandomizedMatrixDecompose}.  Various researchers have proposed computationally efficient techniques in order to reduce these various costs. Low rank and sparse approximations and randomized algorithms aim to reduce the cost of the matrix inversion from $O(N^3)$ to more feasible levels. There are various approaches utilizing fast matrix-vector multiplication techniques in order to reduce the costs further during training and prediction stages. Space-partitioning trees like KD-trees and cover trees have been applied as an alternative to the low rank and sparse approximations. Moreover, in order to cope with the transfer from slow memory some algorithms have been proposed that just passes over the Gram matrix once.
@@ -59,7 +71,7 @@ K\approx \sum_{i=1}^q \lambda_i \mathbf{u}_i \mathbf{u}_i^T; \> where \> \lambda
 \end{equation}
 The issue with this approach is that it requires knowing the spectrum of the eigenvalues which indeed costs $O(N^3)$.  Several approaches have been proposed in order to have a cheaper eigenvalue decomposition \cite{rasmussen06}. 
 
-One particular approach is Nystrom method which approximates the eigenvectors of the kernel matrix by choosing a subset of data. In order to choose subsets of data several greedy algorithms have been proposed \cite{rasmussen} \cite{smolaGreedy}. A randomized matrix approximation approach is given in \cite{RandomizedMatrixDecompose} which is also a \textit{single pass} algorithm. 
+One particular approach is Nystrom method which approximates the eigenvectors of the kernel matrix by choosing a subset of data. In order to choose subsets of data several greedy algorithms have been proposed \cite{rasmussen06} \cite{smolaGreedy}. A randomized matrix approximation approach is given in \cite{RandomizedMatrixDecompose} which is also a \textit{single pass} algorithm. 
 
 Assuming that the subspace of interest (the eigenvectors with substantial eigenvalues) is obtained, one can try to solve the linear system in the subspace of interest using an iterative technique like Conjugate Directions. Intuitively, this is equivalent to projecting the true solution vector to the subspace of interest.
 \begin{figure}[b!] \label{fig:subspace}
