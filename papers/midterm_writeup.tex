@@ -3,7 +3,9 @@
 \usepackage{amsmath}
 \usepackage{amsthm}
 \usepackage{amssymb}
+\usepackage{graphicx}
 
+\usepackage{hyperref}
 \usepackage{fullpage}
 
 \newcommand{\smallest}{\operatornamewithlimits{smallest}}
@@ -26,7 +28,14 @@ As has been discussed in the earlier sections, the training requires the inversi
 \subsection{Low-Rank Approximations}
 The training stage requires computing the term $(\mathbf{K}+\sigma^2\mathbf{I})^{-1}\mathbf{y}$. The inversion of the Gram matrix $\mathbf{K}+\sigma^2\mathbf{I}$ or equivalently solving the linear system $(\mathbf{K}+\sigma^2\mathbf{I})\mathbf{v}=\mathbf{y}$ requires $O(N^3)$ operations. If the kernel is known to be rank q (where $q<<N$), exploiting the low-rank structure will be beneficial computationally. Even in the case of a full rank matrix, the spectrum of the eigenvalues may decay fast and this means that one can get an accurate matrix approximation in the subspace of eigenvectors with bigger eigenvalues. 
 
-The kernel matrix $\mathbf{K}$ is a positive-semidefinite symmetric matrix, hence its eigenvalues are real and positive. Moreover, the spectral theorem states that $\mathbf{K}=\mathbf{U\Lambda U}^T$, where $\mathbf{U}$ is a unitary matrix (i.e. $\mathbf{U}\mathbf{U}^T=\mathbf{U}^T\mathbf{U}=\mathbf{I}$) and $\mathbf{\Lambda}$ is a diagonal matrix, with eigenvalues on the diagonal. The prediction at the training points is given as :
+The reduced-rank approximations scheme goes as follows: A matrix $\mathbf{Q}$ is first to be found such that $\mathbf{K} \approx \mathbf{Q}\mathbf{Q}^T$ . Then the inverse Gram matrix using the matrix inversion lemma can be written as:
+\begin{eqnarray}
+(\mathbf{K}+\sigma^2\mathbf{I})^{-1}&=&(\mathbf{Q}\mathbf{Q}^T+\sigma^2\mathbf{I})^{-1} \nonumber \\
+&=&\sigma^{-2}\mathbf{I}-\sigma^{-2}\mathbf{Q}(\sigma^2\mathbf{I}+\mathbf{Q}^T\mathbf{Q})^{-1}\mathbf{Q}^T
+\end{eqnarray}
+Important thing to note in this case is that one needs to invert a $q \times q$ matrix which requires $O(q^3)$ only. Therefore, whole cost of the operation in this case is finding an approximating $\mathbf{Q}$ matrix.
+
+Reduced-rank approximations are accurate for most of the practical applications due to eigenvalue spectrum. The kernel matrix $\mathbf{K}$ is a positive-semidefinite symmetric matrix, hence its eigenvalues are real and positive. Moreover, the spectral theorem states that $\mathbf{K}=\mathbf{U\Lambda U}^T$, where $\mathbf{U}$ is a unitary matrix (i.e. $\mathbf{U}\mathbf{U}^T=\mathbf{U}^T\mathbf{U}=\mathbf{I}$) and $\mathbf{\Lambda}$ is a diagonal matrix, with eigenvalues on the diagonal. The prediction at the training points is given as :
 \begin{eqnarray}
 \bar{f}&=&\mathbf{K}(\mathbf{K}+\sigma^2\mathbf{I})^{-1}\mathbf{y} \nonumber \\
 \bar{f}&=&\mathbf{U\Lambda U}^T(\mathbf{U\Lambda U}^T+\sigma^2\mathbf{I})^{-1}\mathbf{y} \nonumber \\
@@ -44,9 +53,15 @@ K\approx \sum_{i=1}^q \lambda_i \mathbf{u}_i \mathbf{u}_i^T; \> where \> \lambda
 \end{equation}
 The issue with this approach is that it requires knowing the spectrum of the eigenvalues which indeed costs $O(N^3)$.  Several approaches have been proposed in order to have a cheaper eigenvalue decomposition \cite{rasmussen06}. 
 
-One particular approach is Nystrom method which approximates the eigenvectors of the kernel matrix by choosing a subset of data. In order to choose subsets of data several greedy algorithms have been proposed \cite{rasmussen} \cite{smolaGreedy}. A randomized matrix approximation approach is given in \cite{RandomizedMatrixDecompose} which is also a \textit{single pass} algorithm.
+One particular approach is Nystrom method which approximates the eigenvectors of the kernel matrix by choosing a subset of data. In order to choose subsets of data several greedy algorithms have been proposed \cite{rasmussen} \cite{smolaGreedy}. A randomized matrix approximation approach is given in \cite{RandomizedMatrixDecompose} which is also a \textit{single pass} algorithm. 
 
-
+Assuming that the subspace of interest (the eigenvectors with substantial eigenvalues) is obtained, one can try to solve the linear system in the subspace of interest using an iterative technique like Conjugate Directions. Intuitively, this is equivalent to projecting the true solution vector to the subspace of interest.
+\begin{figure}[h!] \label{fig:subspace}
+  \caption{Solution in the Subspace of Interest}
+  \centering
+    \includegraphics[width=0.8\textwidth]{subspace}
+\end{figure}
+A pictorial description of solving the linear system in a subspace is given in figure \ref{fig:subspace}
 \subsection{Random Features}
 Idea of random features is approximating the kernel using a randomized feature map $\mathbf{z}$ and expressing the problem as a linear machine problem \cite{randomfeatures}. 
 \begin{equation}
@@ -73,7 +88,7 @@ k(\mathbf{x}-\mathbf{x'})&\approx& \frac{1}{D}\sum_{i=1}^De^{j\omega_i^T\mathbf{
 \end{bmatrix}}_{\mathbf{z}(\mathbf{x'})}
 \end{eqnarray}
 \subsection{Sparse Approximations}
-Sparse approximation relies on the greedy heuristic which solves the NP-hard problem of finding a vector $\mathbf{x}$ that satisfies $\left \| \mathbf{A}\mathbf{x} -\mathbf{b} \right \|_2\leq \epsilon $ with the fewest number of non-zero entries (i.e. minimum $L_1$ norm). The greedy heuristic has been investigated in \cite{natarajan}
+Sparse approximation relies on the greedy heuristic which solves the NP-hard problem of finding a vector $\mathbf{x}$ that satisfies $\left \| \mathbf{A}\mathbf{x} -\mathbf{b} \right \|_2\leq \epsilon $ with the fewest number of non-zero entries (i.e. minimum $L_1$ norm). The greedy heuristic has been investigated in \cite{natarajan}. A randomized greedy version has also been given in \cite{smolaGreedy}.
 
 \subsection{Transductive Learning (Bayesian Committee Machine)}
 
@@ -81,7 +96,17 @@ Sparse approximation relies on the greedy heuristic which solves the NP-hard pro
 
 \subsubsection{Space-Partitioning Trees}
 \subsubsection{Multipole methods (Fast Gauss Transform)}
+An iterative subspace solution method like Conjugate Gradients require $O(N^2)$ operations per iteration which is prohibitive with big data. Fast Multipole Methods and its variant Fast Gauss Transform is a faster way of implementing a matrix-vector multiplication. Given a Gaussian Kernel;
+\begin{equation}
+k(\mathbf{x}-\mathbf{x'})=e^{-\frac{\left \| \mathbf{x}-\mathbf{x'} \right \|^2}{\sigma^2}}
+\end{equation}
+the matrix vector multiplication $\mathbf{K}\mathbf{\alpha}$ can be written as:
+\begin{equation}
+\mathbf{K}\alpha=\mathcal{G}(\mathbf{x'}_j)=\sum_{i=1}^N\alpha_ie^{-\frac{\left \| \mathbf{x}_i-\mathbf{x'}_j \right \|^2}{\sigma^2}}
+\end{equation}
+where $\mathcal{G}(\cdot)$ represents the Gauss Transform \cite{FGTkernel}. Direct evaluation of the Gauss Transform requires $O(N^2)$ operations. The Fast Gauss Transform however, requires $O(Np^d)$ to do the same work, where $p$ represents the expansion terms and $d$ represents the dimensionality of the input. The thing to note is that the complexity grows exponentially with the dimensionality which is something not preferable in terms of scalability issues.  Despite this defect, FGT is effective for low-dimensional problems and has achieved success in various applications. 
 
+In order to deal with this dimensionality issues, the Improved Fast Gauss Transform (IFGT) has  been proposed. IFGT uses a different expansion technique and replaces the cost of $O(p^d)$ with $O(d^p)$. As $d\rightarrow \infty$ obviously IFGT cost remains smaller than FGT cost. For details see, \cite{FGTkernel}.
 \subsection{Proposed Approaches}
 
 \subsection{Datasets}
