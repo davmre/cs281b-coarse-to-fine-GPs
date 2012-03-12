@@ -140,9 +140,9 @@ The application to Gaussian processes involves considering the multiplication
 \[\mathbf{k}^T \mathbf{v} = \sum_{i} k(\mathbf{x}, \mathbf{x_i})v_i = \sum_{i} w_iv_i\]
 as a weighted sum over the elements of $\mathbf{v}$, with weights $w_i$ given by the kernel evaluations. Then we can approximate this sum by grouping together points with similar weights, and replacing their individual weights with a single approximate weight. \cite{shen2006fast} describe a method which uses the hierarchical partitioning given by a kd-tree to recursively compute an approximation in this way, computing exact kernel values for points close to the query point $\mathbf{x}$ but clustering together similar regions of the tree to avoid evaluating the kernel at every point. 
 
-Methods based on kd-trees or similar structures have significant advantages -- because the nature of approximation depends on the query point, there is not a single learned model. Instead the complexity of the inferred function grows with the amount of data inferred. As discussed in \cite{murray2009gaussian}
+Methods based on kd-trees or similar structures have significant advantages -- because the nature of approximation depends on the query point, there is not a single learned model. Instead the complexity of the inferred function grows with the amount of data inferred. As discussed in \cite{murray2009gaussian}, space-partitioning trees are most naturally applicable to datasets in which the data are clustered primarily at the level of a shorter lengthscale, such that a small number of nearest neighbors are highly relevant predictors of the function value. This tends to be the case in higher dimensions, where two points might be ``far away'' from each other even if they differ by no than a small amount in any particular dimension. 
 
-One disadvantage of this approach is that kd-trees are known to be inefficient for high-dimensional data. Other data structures have been proposed to improve on this performance, including ball trees \cite{omohundro1989five} and cover trees \cite{beygelzimer2006cover}. To the best of our knowledge these structures have not been applied to Gaussian processes in the published literature, but may yield significant improvements over kd-trees on high dimensional data. 
+Unfortunately, this case (high dimensional problems) is one that kd-trees are known to be inadequate for; the efficiency of kd-trees degrades with higher dimensional problems. Other data structures have been proposed to improve on this performance, including ball trees \cite{omohundro1989five} and cover trees \cite{beygelzimer2006cover}. To the best of our knowledge these structures have not been applied to Gaussian processes in the published literature, but may yield significant improvements over kd-trees on high dimensional data. 
 
 \subsubsection{Multipole methods (Fast Gauss Transform)}
 An iterative subspace solution method like Conjugate Gradients require $O(n^2)$ operations per iteration which is prohibitive with big data. Fast Multipole Methods and its variant Fast Gauss Transform is a faster way of implementing a matrix-vector multiplication. Given a Gaussian Kernel;
@@ -174,9 +174,12 @@ Pictorially, this corresponds to figure \ref{fig:multiresolution}
     \includegraphics[width=0.7\textwidth]{multiresolution}
 \end{figure}
 \section{Datasets}
-
-
-
+We have identified a number of datasets as potentially relevant test cases. Here are short descriptions of three possible options:
+\begin{itemize}
+\item {\bf Seismic arrivals}. This is a spatial dataset consisting of approximately 150000 points in a four-dimensional space, representing the travel time between a seismic event and a detecting station. Because the space has relatively low dimension, we would expect a kd tree to be effective, but the large number of data points is nonetheless sufficient to constitute a challenge for a single machine.
+\item {\bf SARCOS}. This data originates from an inverse dynamics problem involving a robotic arm. The task involves predicting an appropriate level of torque for the arm, given 21-dimensional input features defined on a training set of 44484 examples. This dataset has commonly been used in related work on GP regression, and so provides a useful baseline for comparison. 
+\item {\bf Year prediction}. This data consists of 90 audio-based features, computed for each of 463715 training examples as part of the Million Song Dataset. The task is to predict the year a song was released, based solely on the training data including information on the years in which songs with similar audio characteristics were released. Since this dataset has both a large number of training examples and a high-dimensional input space, it consitutes a very challenging test of effectiveness for proposed efficient GP regression techniques.   
+\end{itemize}------------
 \newpage
 \bibliographystyle{plain}
 \bibliography{refs}
