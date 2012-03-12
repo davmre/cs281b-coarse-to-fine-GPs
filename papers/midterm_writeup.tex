@@ -119,11 +119,7 @@ Therefore, random features can be viewed as a $D$-dimensional low rank approxima
 \end{bmatrix} \>and\> \mathbf{Q} \in \mathbb{R}^{N\times D}
 \end{equation}
 \subsection{Sparse Approximations}
-Sparse approximation relies on the greedy heuristic which solves the NP-hard problem of finding a vector $\mathbf{x}$ that satisfies $\left \| \mathbf{A}\mathbf{x} -\mathbf{b} \right \|_2\leq \epsilon $ with the fewest number of non-zero entries (i.e. minimum $L_1$ norm). The greedy heuristic has been investigated in \cite{natarajan}. A randomized greedy version has also been given in \cite{smolaGreedy}.
-
-\subsection{Transductive Learning (Bayesian Committee Machine)}
-
-
+Sparse approximation relies on finding a vector $\mathbf{x}$ that satisfies $\left \| \mathbf{A}\mathbf{x} -\mathbf{b} \right \|_2\leq \epsilon $ with the fewest number of non-zero entries (i.e. minimum $L_1$ norm). The greedy heuristic has been investigated in \cite{natarajan}. A randomized greedy version has also been given in \cite{smolaGreedy}.
 
 \subsection{Fast Matrix-Vector Multiplication}
 
@@ -144,7 +140,9 @@ The application to Gaussian processes involves considering the multiplication
 \[\mathbf{k}^T \mathbf{v} = \sum_{i} k(\mathbf{x}, \mathbf{x_i})v_i = \sum_{i} w_iv_i\]
 as a weighted sum over the elements of $\mathbf{v}$, with weights $w_i$ given by the kernel evaluations. Then we can approximate this sum by grouping together points with similar weights, and replacing their individual weights with a single approximate weight. \cite{shen2006fast} describe a method which uses the hierarchical partitioning given by a kd-tree to recursively compute an approximation in this way, computing exact kernel values for points close to the query point $\mathbf{x}$ but clustering together similar regions of the tree to avoid evaluating the kernel at every point. 
 
-One disadvantage of this approach is that kd-trees are known to be inefficient for high-dimensional data. Other data structures have been proposed to improve on this performance, including ball trees \cite{omohundro1989five} and cover trees \cite{beygelzimer2006cover}. These structures have not been applied to Gaussian processes in the published literature, but may yield significant improvements over kd-trees on high dimensional data. 
+Methods based on kd-trees or similar structures have significant advantages -- because the nature of approximation depends on the query point, there is not a single learned model. Instead the complexity of the inferred function grows with the amount of data inferred. As discussed in \cite{murray2009gaussian}
+
+One disadvantage of this approach is that kd-trees are known to be inefficient for high-dimensional data. Other data structures have been proposed to improve on this performance, including ball trees \cite{omohundro1989five} and cover trees \cite{beygelzimer2006cover}. To the best of our knowledge these structures have not been applied to Gaussian processes in the published literature, but may yield significant improvements over kd-trees on high dimensional data. 
 
 \subsubsection{Multipole methods (Fast Gauss Transform)}
 An iterative subspace solution method like Conjugate Gradients require $O(n^2)$ operations per iteration which is prohibitive with big data. Fast Multipole Methods and its variant Fast Gauss Transform is a faster way of implementing a matrix-vector multiplication. Given a Gaussian Kernel;
@@ -158,8 +156,8 @@ the matrix vector multiplication $\mathbf{K}\mathbf{\alpha}$ can be written as:
 where $\mathcal{G}(\cdot)$ represents the Gauss Transform \cite{FGTkernel}. Direct evaluation of the Gauss Transform requires $O(n^2)$ operations. The Fast Gauss Transform however, requires $O(np^d)$ to do the same work, where $p$ represents the expansion terms and $d$ represents the dimensionality of the input. The thing to note is that the complexity grows exponentially with the dimensionality which is something not preferable in terms of scalability issues.  Despite this defect, FGT is effective for low-dimensional problems and has achieved success in various applications. 
 
 In order to deal with this dimensionality issues, the Improved Fast Gauss Transform (IFGT) has  been proposed. IFGT uses a different expansion technique and replaces the cost of $O(p^d)$ with $O(d^p)$. As $d\rightarrow \infty$ obviously IFGT cost remains smaller than FGT cost. For details see, \cite{FGTkernel}.
-\subsection{Proposed Approaches}
-There are various approaches trying to lower the cost of computations via different approaches. Our proposal for gaussian process regression and in general to any kernel machine which requires $O(n^3)$ operations is using a blend of the techniques above. The proposed solution is to utilize KD-trees or cover trees to form clusters of data in a multiresolution sense and to do low-rank approximation using the random-features approach in each cluster. Moreover, to fasten up the matrix-vector multiplications we plan to use Fast Gauss Transform so that the complexity of $O(n^2)$ can be reduced to feasible levels of $O(n)$. The approach can be summarized as follows:
+\section{Proposed Approaches}
+As we have seen, many approaches have been proposed for speeding up Gaussian process regression. Our proposal is to blend together a number of the techniques described above. We will use cover trees to form multiresolution clusters of data, analogous to the existing work using kd-trees, and we will attempt to apply random features as a low-rank approximation within each cluster. Moreover, we will attempt to find a recursive formulation of the Fast Gauss Transform which will combine its empirical advnatges with those of space-partitioning trees, so that the complexity of $O(n^2)$ can be reduced to feasible levels of $O(n)$. The approach can be summarized as follows:
 \begin{itemize}
 \item The space-partitioning tree will form clusters of data in a multiresolution sense.
 \item For the biggest cluster, the low-rank approximation solution will be obtained using random features approach with $D_0$ samples.
@@ -175,14 +173,8 @@ Pictorially, this corresponds to figure \ref{fig:multiresolution}
   \centering
     \includegraphics[width=0.7\textwidth]{multiresolution}
 \end{figure}
-\subsection{Datasets}
-sdfsdf \\
-sdfsd\\
-sdfsd\\
-sdfsdf\\
-asdads\\
-addfs\\
-dsff\\
+\section{Datasets}
+
 
 
 \newpage
