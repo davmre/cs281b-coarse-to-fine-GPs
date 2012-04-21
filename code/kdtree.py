@@ -3,7 +3,6 @@ import time
 
 class KDTree:
 
-    # adapted from wikipedia, http://en.wikipedia.org/wiki/K-d_tree
     def __init__(self, X, depth=0, alpha=None, split_median=False):
 
         if len(X.shape) != 2 or X.shape[0] ==0:
@@ -11,25 +10,35 @@ class KDTree:
 
         (n,k) = X.shape
         self.n = n
-        self.bounding_box = np.vstack([np.min(X), np.max(X)])
-        self.alpha_sum = np.sum(alpha)
 
-        # Split along the axis with the largest width
-        #axis_widths = self.bounding_box[1,:] - self.bounding_box[0,:]
-        #axis = np.argmin(axis_width)
-        #self.axis = axis
+        if alpha is not None:
+            self.alpha_sum = np.sum(alpha)
 
-        axis = depth % k
-        self.axis = axis
+        # if this is a leaf node, just store the appropriate point
+        if n == 1:
+            self.x = X[0,:]
+            self.left_child = None
+            self.right_child = None
+            return
 
-        # Sort point list and choose median as pivot element
-        X = X[X[:,axis].argsort(), :]
-        median = n // 2 # choose median
+        # otherwise, create two child nodes, splitting along the axis
+        # with the largest width.
+        self.bounding_box = np.vstack([np.min(X, axis=0), np.max(X, axis=0)])
+        axis_widths = self.bounding_box[1,:] - self.bounding_box[0,:]
+        self.axis = np.argmax(axis_widths)
+        self.split_value = axis_widths[self.axis]/2 + self.bounding_box[0, self.axis]
+#        print "splitting on dim %d at %f" % (self.axis, self.split_value)
 
-        # Create node and construct subtrees
-        self.location = X[median, :]
-        self.left_child = KDTree(X[:median, :], depth + 1) if n > 1 else None
-        self.right_child = KDTree(X[median + 1:, :], depth + 1) if n > 2 else None
+
+        left_points = (X[:, self.axis] <= self.split_value)
+        right_points = np.invert(left_points)
+
+#        print "subtree split: left %d right %d" % (np.sum(left_points), n - np.sum(left_points))
+
+        left_alpha = alpha(left_points) if alpha is not None else None
+        right_alpha = alpha(left_points) if alpha is not None else None
+        self.left_child = KDTree(X[left_points, :], depth + 1, left_alpha)
+        self.right_child = KDTree(X[right_points, :], depth + 1, right_alpha)
 
     def insert(self, x):
         pass
@@ -41,33 +50,23 @@ class KDTree:
     # nearest-neighbor lookup
     def _nn_nocheck(self, x):
 
-        try:
-            axis = self.axis
-        except AttributeError:
-            import pdb
-            pdb.set_trace()
-
-        v = x - self.location
-        self_dist = np.dot(v,v)
-
         # if we're at a leaf, return the current point
         if self.left_child is None:
-            return self.location, self_dist
+            v = x - self.x
+            self_dist = np.dot(v,v)
+            return self.x, self_dist
 
-        if x[axis] < self.location[axis] or self.right_child is None:
+        # otherwise, check both subtrees
+        axis = self.axis
+        if x[axis] <= self.split_value:
             other_child = self.right_child
             nn, nndist = self.left_child._nn_nocheck(x)
         else:
             other_child = self.left_child
             nn, nndist = self.right_child._nn_nocheck(x)
 
-        # compare this current node to the the best point from further down the tree
-        if self_dist < nndist:
-            nndist = self_dist
-            nn = self.location
-
         # possibly check the other side of the splitting plane
-        split_dist = (x[axis] - self.location[axis])**2
+        split_dist = (x[axis] - self.split_value)**2
         if split_dist < nndist and self.right_child is not None:
             nn2, dist2 = other_child._nn_nocheck(x)
             if dist2 < nndist:
