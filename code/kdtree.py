@@ -3,16 +3,15 @@ import time
 
 class KDTree:
 
-    def __init__(self, X, depth=0, alpha=None, split_median=False):
+    def __init__(self, X, depth=0):
 
         if len(X.shape) != 2 or X.shape[0] ==0:
             return None
 
         (n,k) = X.shape
         self.n = n
-
-        if alpha is not None:
-            self.alpha_sum = np.sum(alpha)
+        self.k = k
+        self.depth = depth
 
         # if this is a leaf node, just store the appropriate point
         if n == 1:
@@ -24,24 +23,79 @@ class KDTree:
         # otherwise, create two child nodes, splitting along the axis
         # with the largest width.
         self.bounding_box = np.vstack([np.min(X, axis=0), np.max(X, axis=0)])
+
         axis_widths = self.bounding_box[1,:] - self.bounding_box[0,:]
         self.axis = np.argmax(axis_widths)
         self.split_value = axis_widths[self.axis]/2 + self.bounding_box[0, self.axis]
-#        print "splitting on dim %d at %f" % (self.axis, self.split_value)
-
 
         left_points = (X[:, self.axis] <= self.split_value)
         right_points = np.invert(left_points)
-
-#        print "subtree split: left %d right %d" % (np.sum(left_points), n - np.sum(left_points))
-
-        left_alpha = alpha(left_points) if alpha is not None else None
-        right_alpha = alpha(left_points) if alpha is not None else None
-        self.left_child = KDTree(X[left_points, :], depth + 1, left_alpha)
-        self.right_child = KDTree(X[right_points, :], depth + 1, right_alpha)
+        self.left_child = KDTree(X[left_points, :], depth + 1)
+        self.right_child = KDTree(X[right_points, :], depth + 1)
 
     def insert(self, x):
         pass
+
+    def update_p(self, X,p):
+
+        self.p_sum = np.sum(p)
+
+        if self.left_child is not None:
+            left_points = (X[:, self.axis] <= self.split_value)
+            right_points = np.invert(left_points)
+            self.left_child.update_p(X[left_points,:], p[left_points])
+            self.right_child.update_p(X[right_points,:], p[right_points])
+
+    def exact_weighted_sum(self, x, kernel):
+        if self.left_child is None:
+            return self.p_sum * kernel(x, self.x), self.p_sum
+
+        else:
+            left_sum, left_w = self.left_child.exact_weighted_sum(x, kernel)
+            right_sum, right_w = self.right_child.exact_weighted_sum(x, kernel)
+            return left_sum + right_sum, left_w + right_w
+
+    def weighted_sum(self, x, kernel, wSoFar, epsilon):
+        if self.left_child is None:
+            return self.p_sum * kernel(x, self.x), wSoFar+self.p_sum
+
+
+        # if our query point is not in the bounding box, compute
+        # weight bounds using the closest and nearest corners of the
+        # bounding box.
+        if self.n >2 and ((x - self.bounding_box[0,:]) < 0 ).any() or ((x - self.bounding_box[1,:]) > 0 ).any():
+            close_pt = np.copy(self.bounding_box[0,:])
+            far_pt = np.copy(self.bounding_box[1,:])
+
+            for i in range(self.k):
+                c1 = self.bounding_box[0,i]
+                c2 = self.bounding_box[1,i]
+                if np.abs(x[i] - c1) > np.abs(x[i] - c2):
+                    close_pt[i] = c2
+                    far_pt[i] = c1
+                wmin = kernel(x, far_pt)
+                wmax = kernel(x, close_pt)
+
+            # stop if the difference in weights is less than some
+            # fraction of a lower bound on the average weight
+            if self.n*(wmax-wmin) < 2*epsilon*(wSoFar + self.n*wmin):
+                s = .5 * (wmax + wmin) * self.p_sum
+                wSoFar += self.n * wmin
+                return s, wSoFar
+
+        if x[self.axis] <= self.split_value:
+            near_child = self.left_child
+            far_child = self.right_child
+        else:
+            near_child = self.right_child
+            far_child = self.left_child
+
+        s_nearer, wSoFar = near_child.weighted_sum(x, kernel, wSoFar, epsilon)
+        s_farther, wSoFar = far_child.weighted_sum(x, kernel, wSoFar, epsilon)
+        s = s_nearer + s_farther
+
+        return s, wSoFar
+
 
     def nn(self, x):
         x = np.array(x)

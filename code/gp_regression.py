@@ -8,6 +8,8 @@ import numpy as np
 import scipy.linalg, scipy.optimize
 import kernels
 
+from kdtree import KDTree
+
 def sq_loss(y1, y2):
     return np.sum(np.abs(y1-y2)**2)
 
@@ -140,12 +142,21 @@ class GaussianProcess:
                     raise
 
             if inv:
-                self.__invert_kernel_matrix()
+                self._invert_kernel_matrix()
 
-    def __invert_kernel_matrix(self):
-        if self.Kinv is None and self.L is not None:
-            invL = scipy.linalg.inv(self.L)
-            self.Kinv = np.dot(invL.T, invL)
+    def _invert_kernel_matrix(self):
+        if self.Kinv is not None:
+            return
+
+        if self.K is None:
+            self.K = self.kernel(self.X, self.X)
+
+        if self.L is None:
+            self.L = scipy.linalg.cholesky(self.K, lower=True)
+            self.alpha = scipy.linalg.cho_solve((self.L, True), self.y)
+
+        invL = scipy.linalg.inv(self.L)
+        self.Kinv = np.dot(invL.T, invL)
 
     def sample(self, X1):
         X1 = np.array(X1)
@@ -172,7 +183,7 @@ class GaussianProcess:
         if not self.posdef:
             return 0
 
-        self.__invert_kernel_matrix()
+        self._invert_kernel_matrix()
         K = self.kernel(self.X, X1)
         return self.kernel(X1,X1) - np.dot(K.T, np.dot(self.Kinv, K))
 
@@ -186,7 +197,7 @@ class GaussianProcess:
         if not self.posdef:
             return np.float('-inf')
 
-        self.__invert_kernel_matrix()
+        self._invert_kernel_matrix()
 
         K = self.variance(X1)
         y = y-self.predict(X1)
@@ -211,7 +222,7 @@ class GaussianProcess:
         if not self.posdef:
             return np.float('-inf')
 
-        self.__invert_kernel_matrix()
+        self._invert_kernel_matrix()
 
         # the determinant of a symmetric pos. def. matrix is the product of squares of the diagonal elements of the Cholesky factor
         ld2 = np.log(np.diag(self.L)).sum()
@@ -227,7 +238,7 @@ class GaussianProcess:
         if not self.posdef:
             return grad
 
-        self.__invert_kernel_matrix()
+        self._invert_kernel_matrix()
 
         for i,p in enumerate(self.kernel_params):
 
@@ -266,6 +277,99 @@ class GaussianProcess:
         self.n = self.X.shape[0]
         self.kernel = kernels.setup_kernel(kernel_name, kernel_params)
 #    def validation_loss(self, trainIdx, valIdx, kernel_params, loss_fn):
+
+
+class TreeGP(GaussianProcess):
+
+    def __init__(self, X=None, y=None, kernel="se", kernel_params=(1, 1,), kernel_priors = None, kernel_extra = None, mean="constant"):
+        self.kernel_name = kernel
+        self.kernel_params = kernel_params
+        self.kernel_priors = kernel_priors
+        self.kernel = kernels.setup_kernel(kernel, kernel_params, kernel_extra, kernel_priors)
+        self.X = X
+        self.n = X.shape[0]
+
+        if mean == "zero":
+            self.mu = 0
+            self.y = y
+        if mean == "constant":
+            self.mu = np.mean(y)
+            self.y = y - self.mu
+        if mean == "linear":
+            raise RuntimeError("linear mean not yet implemented...")
+        self.mean = mean
+
+        self.K = None
+        self.L = None
+        self.alpha = None
+        self.Kinv = None
+        self.posdef = True
+
+        self.tree = KDTree(X)
+
+        self.alpha = self._treeCG()
+        print "trained CG, found alpha", self.alpha
+
+        self._invert_kernel_matrix()
+        print "true alpha is", self.alpha
+
+    def _trueMVM(self, v):
+        self._invert_kernel_matrix()
+
+        return np.dot(self.K, v)
+
+    # return v multiplied  by the kernel matrix
+    def _treeMVM(self, v):
+        result = np.zeros(v.shape)
+
+        self.tree.update_p(self.X, v)
+        for i,x in enumerate(self.X):
+            s, wt = self.tree.weighted_sum(x, self.kernel, 0, epsilon = 0.01)
+#            s, wt = self.tree.exact_weighted_sum(x, self.kernel)
+            result[i] = s
+
+#        r2 = self._trueMVM(v)
+        #discr = np.linalg.norm(result-r2)
+        #print "result discrepancy", discr
+        #if discr > 0.01:
+        #    import pdb
+        #    pdb.set_trace()
+
+        return result
+
+    # CG algorithm from Schewchuk "Without the Agonizing Pain", appendix B2
+    def _treeCG(self, epsilon=0.001):
+        imax = 10
+
+        b = self.y
+
+        # x = ""a real init point""
+        # r = b - self._treeMVM(x)
+
+        x = np.zeros((self.n,))
+        r = b
+
+        d = r
+        delta_new = np.dot(r,r)
+        delta0 = delta_new
+        i=0
+        while i < imax and delta_new > epsilon**2 * delta0:
+            print "CG iteration %d of %d, delta = %f" % (i, imax, delta_new)
+
+            q = self._treeMVM(d)
+            alpha = delta_new / np.dot(d, q)
+            x = x + alpha * d
+            if i % 50 == 0:
+                r = b - self._treeMVM(x)
+            else:
+                r = r - alpha*q
+            delta_old = delta_new
+            delta_new = np.dot(r,r)
+            beta = delta_new/delta_old
+            d = r + beta*d
+            i = i+1
+
+        return x
 
 def gp_ll(X, y, kernel, kernel_params, kernel_extra):
     try:
@@ -399,12 +503,14 @@ def gp_plot_prediction(predict_x, mean, variance = None):
         p = fill(var_x, var_y, edgecolor='w', facecolor='#d3d3d3')
 
 def main():
-    X = np.array(((0,0), (0,1), (1,0), (1,1)))
-    y = np.array((1, 50, 50, 15))
 
 
-    gp = GaussianProcess(X=X, y=y, kernel="sqexp", kernel_params=(1,), sigma=0.01)
-    print gp.predict((0,0))
+    X = np.reshape(np.arange(0, 100), (20, 5))
+    y = np.arange(0, 20)
+
+
+    gp = TreeGP(X=X, y=y, kernel="se_iso", kernel_params=(0.01, 1, 1,))
+    print gp.predict((5,6,7,8,10))
 
 #    print pickle.dumps(gp)
 

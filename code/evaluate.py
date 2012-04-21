@@ -73,20 +73,34 @@ def load_sarcos(folder="../data/"):
     return X, y, validation_X, validation_y, test_X, test_y
 
 
-def plot_learning_curve(X, y, validation_X, validation_y, sizes=(100, 300, 500, 1000, 3000, 5000, 8000, 10000)):
+def plot_learning_curve(X, y, validation_X, validation_y, sizes=(100, 300, 500, 1000, 3000, 5000)):
 
-	widths = munge.distance_quantiles(X, [0.5])
+        sizes=(100,)
+
+	widths = munge.distance_quantiles(X, [0.05])
 	print "widths", widths
 
 	sizes = np.array(sizes).reshape(-1,1)
 	padding = np.zeros((len(sizes), 4))
 	results = np.hstack([sizes, padding])
+	tree_results = np.hstack([sizes, padding])
 
 	for i,n in enumerate(sizes):
 		limX = X[0:n, :]
 		limy = y[0:n]
+
 		t1 = time.time()
 		gp = gpr.GaussianProcess(X = limX, y = limy, kernel="se_iso", kernel_params=np.asarray((1, 1, widths[0])))
+		t2 = time.time()
+		results[i, 1] = t2-t1
+		py = gp.predict(validation_X)
+		t3 = time.time()
+		results[i, 2] = t3-t2
+		results[i, 3] = gpr.rms_loss(py,validation_y)
+		results[i, 4] = gpr.abs_loss(py,validation_y)
+
+		t1 = time.time()
+		gp = gpr.TreeGP(X = limX, y = limy, kernel="se_iso", kernel_params=np.asarray((1, 1, widths[0])))
 		t2 = time.time()
 		results[i, 1] = t2-t1
 		py = gp.predict(validation_X)
@@ -110,7 +124,23 @@ def plot_learning_curve(X, y, validation_X, validation_y, sizes=(100, 300, 500, 
 	ax2.plot ( results[:,0],results[:,3],'r-',label='loss' )
 	ax2.set_ylabel("root mean squared loss")
 
-	plt.savefig("curve.pdf")
+	plt.savefig("base.pdf")
+
+	fig = plt.figure()
+	ax1 = fig.add_subplot(111)
+
+	ax1.plot ( tree_results[:,0],tree_results[:,1],'b-',label='train time' )
+	ax1.plot ( tree_results[:,0],tree_results[:,2],'g-',label='test time' )
+	ax1.set_xlabel("n")
+	ax1.set_ylabel("seconds", color='b')
+
+	ax2 = ax1.twinx()
+	ax2.plot ( tree_results[:,0],tree_results[:,3],'r-',label='loss' )
+	ax2.set_ylabel("root mean squared loss")
+
+	plt.savefig("tree.pdf")
+
+
 
 def main():
 

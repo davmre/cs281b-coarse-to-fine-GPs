@@ -20,6 +20,26 @@ def gen_pairwise_matrix(f, X1, X2):
 def almost_equal(x1, x2, tol=1e-6):
     return np.linalg.norm(x1-x2) < tol
 
+def sqdistances(X1, X2):
+    n1 = X1.shape[0]
+    n2 = X2.shape[0]
+    norms1 = np.reshape(np.sum(np.abs(X1)**2,axis=-1), (n1, 1))
+    norms2 = np.reshape(np.sum(np.abs(X2)**2,axis=-1), (n2, 1))
+    sqdistances = np.tile(norms1, (1, n2)) + np.tile(norms2.T, (n1, 1)) - 2*np.dot(X1, X2.T)
+
+    return sqdistances
+
+def sqidistances(i, X1, X2):
+    n1 = X1.shape[0]
+    n2 = X2.shape[0]
+    iX1 = np.tile(np.reshape(X1[:, i], (-1, 1)), (1, n2))
+    iX2 = np.tile(np.reshape(X2[:, i], (1, -1)), (n1, 1))
+#        print iX1.shape, iX2.shape
+
+    sqi = (iX1 - iX2)**2
+    return sqi
+
+
 # abstract base class for kernels
 class Kernel(object):
 
@@ -112,38 +132,20 @@ class SEKernel(Kernel):
         self.Winv = 1/np.diag(self.ws)
         self.Winv2 = self.Winv*self.Winv
 
-    def _sqdistances(self, X1, X2):
-        n1 = X1.shape[0]
-        n2 = X2.shape[0]
-        norms1 = np.reshape(np.sum(np.abs(X1)**2,axis=-1), (n1, 1))
-        norms2 = np.reshape(np.sum(np.abs(X2)**2,axis=-1), (n2, 1))
-        sqdistances = np.tile(norms1, (1, n2)) + np.tile(norms2.T, (n1, 1)) - 2*np.dot(X1, X2.T)
-
-        return sqdistances
-
-    def __sqidistances(self, i, X1, X2):
-        n1 = X1.shape[0]
-        n2 = X2.shape[0]
-        iX1 = np.tile(np.reshape(X1[:, i], (-1, 1)), (1, n2))
-        iX2 = np.tile(np.reshape(X2[:, i], (1, -1)), (n1, 1))
-#        print iX1.shape, iX2.shape
-
-        sqi = (iX1 - iX2)**2
-        return sqi
 
     def __call__(self, X1, X2):
         X1, X2 = self._check_args(X1,X2)
-        wsd = self._sqdistances(X1 * self.iws, X2 * self.iws)
+        wsd = sqdistances(X1 * self.iws, X2 * self.iws)
         K = self.sigma_f * np.exp(-.5 * wsd)
         return K
 
     def derivative_wrt_i(self, i, X1, X2):
         X1, X2 = self._check_args(X1,X2)
-        wsd = self._sqdistances(X1*self.iws, X2*self.iws)
+        wsd = sqdistances(X1*self.iws, X2*self.iws)
         if i==0:
             dK = np.exp(-.5 * wsd)
         elif i>=1 and i-1 < len(self.ws):
-            dK = self.sigma_f * np.exp(-.5 * wsd) * self.__sqidistances(i-1, X1, X2)  / (self.ws[i-1]**3)
+            dK = self.sigma_f * np.exp(-.5 * wsd) * sqidistances(i-1, X1, X2)  / (self.ws[i-1]**3)
         else:
             raise RuntimeError("Unknown parameter index %d (out of %d) for SEKernel." % (i, self.nparams))
         return dK
@@ -202,10 +204,10 @@ class SEKernelIso(SEKernel):
         X1, X2 = self._check_args(X1,X2)
         w = self.w
         if i==0:
-            dK = 2 * self.sigma_f * np.exp(-.5 * self._sqdistances(X1/w, X2/w))
+            dK = 2 * self.sigma_f * np.exp(-.5 * sqdistances(X1/w, X2/w))
         elif i>=1 and i-1 < len(self.ws):
-            wsd = self._sqdistances(X1/w, X2/w)
-            dK = self.sigma2_f * np.exp(-.5 * wsd) * self._sqdistances(X1/w, X2/w)/w
+            wsd = sqdistances(X1/w, X2/w)
+            dK = self.sigma2_f * np.exp(-.5 * wsd) * sqdistances(X1/w, X2/w)/w
         else:
             raise RuntimeError("Unknown parameter index %d (out of %d) for SEKernel." % (i, self.nparams))
         return dK
@@ -228,9 +230,8 @@ class DiagonalKernel(Kernel):
             return self.s2 * np.eye(n)
         else:
             (m,d) = X2.shape
-            return np.zeros((n,m))
-#            f = lambda x1, x2: self.s2 if almost_equal(x1,x2) else 0
-#            return gen_pairwise_matrix(f, X1, X2)
+            dists = (sqdistances(X1, X2) < 1e-10)
+            return self.s2 * dists
 
     def derivative_wrt_i(self, i, X1, X2):
         X1, X2 = self._check_args(X1,X2)
@@ -241,7 +242,7 @@ class DiagonalKernel(Kernel):
                 (n,d) = X1.shape
                 return 2 * self.s * np.eye(n)
             else:
-                f = lambda x1, x2: 2*self.s if almost_equal(x1,x2) else 0
+                f = lambda x1, x2: 2*self.s if x1==x2 else 0
                 return gen_pairwise_matrix(f, X1, X2)
 
 def setup_kernel(name, params, extra, priors=None):
