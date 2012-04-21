@@ -89,6 +89,19 @@ class SumKernel(Kernel):
         return g
 
 
+class LinearKernel(Kernel):
+
+    def __init__(self, params=None, priors=None):
+        super(LinearKernel, self).__init__(params, priors)
+
+    def __call__(self, X1, X2):
+        return np.dot(X1, X2.T)
+
+    def derivative_wrt_i(self, i, X1, X2):
+        (n,d) = X1.shape
+        (m,d) = X2.shape
+        return np.zeros((n,m))
+
 class SEKernel(Kernel):
 
     def __init__(self, params, priors = None):
@@ -210,11 +223,10 @@ class DiagonalKernel(Kernel):
 
     def __call__(self, X1, X2):
         X1, X2 = self._check_args(X1,X2)
+        (n,d) = X1.shape
         if X1 is X2:
-            (n,d) = X1.shape
             return self.s2 * np.eye(n)
         else:
-            (n,d) = X1.shape
             (m,d) = X2.shape
             return np.zeros((n,m))
 #            f = lambda x1, x2: self.s2 if almost_equal(x1,x2) else 0
@@ -236,7 +248,10 @@ def setup_kernel(name, params, extra, priors=None):
     if priors is None:
         priors = [None for p in params]
 
-    if name == "se":
+    if name == "linear":
+        sigma_n = params[0]
+        k = DiagonalKernel([sigma_n,], priors = priors[0]) + LinearKernel(params[1:], params[1:])
+    elif name == "se":
         sigma_n = params[0]
         k = DiagonalKernel([sigma_n,], priors = priors[0:1]) + SEKernel(params[1:], priors[1:])
     elif name == "se_iso":

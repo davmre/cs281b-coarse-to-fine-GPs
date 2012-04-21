@@ -65,20 +65,26 @@ def test_kfold(X, y, folds, kernel, kernel_params, kernel_extra, K, loss_fn, tra
         print "train pred mean", np.mean(predictions), "true mean", np.mean(y)
         K = gp.K
 
+    kfold_predictions = np.zeros((n,))
+
     for i in range(folds):
-        train = np.concatenate([np.arange(0, i*foldsize, dtype=np.uint), np.arange((i+1)*foldsize, n, dtype=np.uint)])
-        validate = np.arange(i*foldsize, (i+1)*foldsize, dtype=np.uint)
+        foldstart = i*foldsize
+        foldend = (i+1)*foldsize if i < folds-1 else n
+        print "fold %f from %d to %d, size (%d)" % (i, foldstart, foldend, foldend-foldstart)
+        train = np.concatenate([np.arange(0, foldstart, dtype=np.uint), np.arange(foldend, n, dtype=np.uint)])
+        validate = np.arange(foldstart, foldend, dtype=np.uint)
         gp = GaussianProcess(X=X[train, :], y=y[train,:], kernel=kernel, kernel_params=kernel_params, kernel_extra=kernel_extra, K=K[train, :][:, train], inv=False)
         predictions = gp.predict(X[validate,:])
+        kfold_predictions[foldstart:foldend] = predictions
         loss += loss_fn(predictions, y[validate])
         baseline_loss += loss_fn(np.mean(y[train,:]), y[validate,:])
         print "pred mean", np.mean(predictions), "train mean", np.mean(y[train,:]), "validate mean", np.mean(y[validate,:])
         print "pred loss", loss_fn(predictions, y[validate]), "baseline_loss", loss_fn(np.mean(y[train,:]), y[validate,:])
 
     if train_loss:
-        return loss/float(foldsize*folds), tl/float(n), baseline_loss/float(foldsize*folds)
+        return loss/float(foldsize*folds), tl/float(n), baseline_loss/float(foldsize*folds), kfold_predictions
     else:
-        return loss/float(n)
+        return loss/float(n), kfold_predictions
 
 class GaussianProcess:
 
@@ -141,6 +147,20 @@ class GaussianProcess:
             invL = scipy.linalg.inv(self.L)
             self.Kinv = np.dot(invL.T, invL)
 
+    def sample(self, X1):
+        X1 = np.array(X1)
+        if len(X1.shape) == 1:
+            X1 = np.reshape(X1, (1, -1))
+
+        (n,d) = X1.shape
+        means = self.predict(X1)
+        K = self.variance(X1)
+
+        L = scipy.linalg.cholesky(K, lower=True)
+        samples = np.random.randn(n, 1)
+        samples = means + np.dot(L, samples)
+        return samples
+
     def predict(self, X1):
         if not self.posdef:
             return self.mu
@@ -155,6 +175,37 @@ class GaussianProcess:
         self.__invert_kernel_matrix()
         K = self.kernel(self.X, X1)
         return self.kernel(X1,X1) - np.dot(K.T, np.dot(self.Kinv, K))
+
+    def posterior_log_likelihood(self, X1, y):
+        y = np.array(y)
+        if len(y.shape) == 0:
+            n = 1
+        else:
+            n = len(y)
+
+        if not self.posdef:
+            return np.float('-inf')
+
+        self.__invert_kernel_matrix()
+
+        K = self.variance(X1)
+        y = y-self.predict(X1)
+
+        if n==1:
+            var = K[0,0]
+            ll1 = - .5 * ((y)**2 / var + np.log(2*np.pi*var) )
+
+        if K[0,0] < 0:
+            import pdb
+            pdb.set_trace()
+
+
+        L = scipy.linalg.cholesky(K, lower=True)
+        ld2 = np.log(np.diag(L)).sum()
+        alpha = scipy.linalg.cho_solve((L, True), y)
+        ll =  -.5 * (np.dot(y.T, alpha) + n * np.log(2*np.pi)) - ld2
+        return ll
+
 
     def log_likelihood(self):
         if not self.posdef:
