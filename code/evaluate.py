@@ -105,9 +105,9 @@ def plot_learning_curve(X, y, validation_X, validation_y, sizes=(100, 300, 500, 
 		results[i, 1] = t2-t1
 		py = gp.predict(validation_X)
 		t3 = time.time()
-		results[i, 2] = t3-t2
-		results[i, 3] = gpr.rms_loss(py,validation_y)
-		results[i, 4] = gpr.abs_loss(py,validation_y)
+		tree_results[i, 2] = t3-t2
+		tree_results[i, 3] = gpr.rms_loss(py,validation_y)
+		tree_results[i, 4] = gpr.abs_loss(py,validation_y)
 
 		print "done with n =",n
 		print "got row", results[i,:]
